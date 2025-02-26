@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dienstplan</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .entry { border-left: 5px solid red; padding: 10px; margin: 10px 0; background: #f8f8f8; }
+        #linkInput { width: 80%; padding: 5px; }
+        button { padding: 5px 10px; }
+    </style>
+</head>
+<body>
+    <h2>Dienstplan</h2>
+    <label for="linkInput">ICS-Link:</label>
+    <input type="text" id="linkInput" placeholder="https://example.com/dienstplan.ics">
+    <button onclick="saveLink()">Speichern</button>
+    <button onclick="loadICS()">Laden</button>
+    <div id="dienstplan"></div>
+    
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            if (localStorage.getItem("icsLink")) {
+                document.getElementById("linkInput").value = localStorage.getItem("icsLink");
+            }
+        });
+
+        function saveLink() {
+            const link = document.getElementById("linkInput").value;
+            localStorage.setItem("icsLink", link);
+            alert("Link gespeichert!");
+        }
+        
+        async function loadICS() {
+            const icsLink = localStorage.getItem("icsLink");
+            if (!icsLink) {
+                alert("Kein ICS-Link gespeichert!");
+                return;
+            }
+            
+            try {
+                const response = await fetch(icsLink);
+                const text = await response.text();
+                parseICS(text);
+            } catch (error) {
+                alert("Fehler beim Laden der ICS-Datei");
+            }
+        }
+        
+        function parseICS(icsText) {
+            const events = [];
+            const lines = icsText.split("\n");
+            let event = {};
+            
+            lines.forEach(line => {
+                if (line.startsWith("BEGIN:VEVENT")) {
+                    event = {};
+                } else if (line.startsWith("SUMMARY:")) {
+                    event.title = line.replace("SUMMARY:", "");
+                } else if (line.startsWith("LOCATION:")) {
+                    event.location = line.replace("LOCATION:", "");
+                } else if (line.startsWith("DESCRIPTION:")) {
+                    event.description = line.replace("DESCRIPTION:", "");
+                } else if (line.startsWith("DTSTART:")) {
+                    event.start = line.replace("DTSTART:", "");
+                } else if (line.startsWith("DTEND:")) {
+                    event.end = line.replace("DTEND:", "");
+                } else if (line.startsWith("END:VEVENT")) {
+                    events.push(event);
+                }
+            });
+            
+            displayEvents(events);
+        }
+        
+        function displayEvents(events) {
+            const container = document.getElementById("dienstplan");
+            container.innerHTML = "";
+            events.forEach(event => {
+                const div = document.createElement("div");
+                div.classList.add("entry");
+                div.innerHTML = `<strong>${event.title}</strong><br>${event.start} - ${event.end}<br>@${event.location}<br>${event.description}`;
+                container.appendChild(div);
+            });
+        }
+    </script>
+</body>
+</html>
