@@ -4,75 +4,81 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dienstplan PWA</title>
-    <link rel="stylesheet" href="styles.css">
-    <script defer src="app.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        #event-list {
+            margin-top: 20px;
+        }
+        .event {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>Dienstplan</h1>
-    </header>
-    <main>
-        <section id="setup">
-            <label for="ics-url">ICS-Link eingeben:</label>
-            <input type="url" id="ics-url" placeholder="https://example.com/dienstplan.ics">
-            <button id="save-url">Laden</button>
-        </section>
-        <section id="event-list"></section>
-    </main>
-    <footer>
-        <p>PWA Dienstplan © 2025</p>
-    </footer>
+    <h1>Dienstplan</h1>
+    <input type="url" id="ics-url" placeholder="ICS-Link eingeben">
+    <button onclick="loadICS()">Laden</button>
+    <div id="event-list"></div>
+    
+    <script>
+        async function loadICS() {
+            const url = document.getElementById('ics-url').value;
+            if (!url) {
+                alert('Bitte einen ICS-Link eingeben.');
+                return;
+            }
+            localStorage.setItem('ics_url', url);
+            fetchICS(url);
+        }
+
+        async function fetchICS(url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Fehler beim Laden der Datei');
+                const text = await response.text();
+                displayEvents(parseICS(text));
+            } catch (error) {
+                console.error('Fehler:', error);
+                alert('Fehler beim Laden der ICS-Datei.');
+            }
+        }
+
+        function parseICS(icsText) {
+            const events = [];
+            const eventBlocks = icsText.split('BEGIN:VEVENT').slice(1);
+            eventBlocks.forEach(block => {
+                const summary = (block.match(/SUMMARY:(.*)/) || [])[1] || 'Unbekannter Dienst';
+                const dtStart = (block.match(/DTSTART:(\d{8}T\d{6})/) || [])[1] || '';
+                const dtEnd = (block.match(/DTEND:(\d{8}T\d{6})/) || [])[1] || '';
+                events.push({ summary, dtStart, dtEnd });
+            });
+            return events;
+        }
+
+        function displayEvents(events) {
+            const container = document.getElementById('event-list');
+            container.innerHTML = '';
+            events.forEach(event => {
+                const eventEl = document.createElement('div');
+                eventEl.className = 'event';
+                eventEl.innerHTML = `<h3>${event.summary}</h3><p>${formatDate(event.dtStart)} - ${formatDate(event.dtEnd)}</p>`;
+                container.appendChild(eventEl);
+            });
+        }
+
+        function formatDate(icsDate) {
+            if (!icsDate) return 'Unbekannt';
+            return `${icsDate.substring(6, 8)}.${icsDate.substring(4, 6)}.${icsDate.substring(0, 4)} ${icsDate.substring(9, 11)}:${icsDate.substring(11, 13)}`;
+        }
+    </script>
 </body>
 </html>
-
-// app.js
-const ICS_URL_KEY = 'ics_url';
-
-function saveICSUrl() {
-    const url = document.getElementById('ics-url').value;
-    if (url) {
-        localStorage.setItem(ICS_URL_KEY, url);
-        fetchICSData(url);
-    }
-}
-
-document.getElementById('save-url').addEventListener('click', saveICSUrl);
-
-async function fetchICSData(url) {
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Fehler beim Laden der Datei');
-        const text = await response.text();
-        parseICS(text);
-    } catch (error) {
-        console.error('Fehler:', error);
-    }
-}
-
-function parseICS(icsText) {
-    const events = [];
-    const eventBlocks = icsText.split('BEGIN:VEVENT').slice(1);
-    eventBlocks.forEach(block => {
-        const summary = block.match(/SUMMARY:(.*)/)?.[1] || 'Unbekannter Dienst';
-        const dtStart = block.match(/DTSTART:(\d{8}T\d{6})/)?.[1] || '';
-        const dtEnd = block.match(/DTEND:(\d{8}T\d{6})/)?.[1] || '';
-        events.push({ summary, dtStart, dtEnd });
-    });
-    renderEvents(events);
-}
-
-function renderEvents(events) {
-    const container = document.getElementById('event-list');
-    container.innerHTML = '';
-    events.forEach(event => {
-        const eventEl = document.createElement('div');
-        eventEl.className = 'event';
-        eventEl.innerHTML = `<h3>${event.summary}</h3><p>${formatDate(event.dtStart)} - ${formatDate(event.dtEnd)}</p>`;
-        container.appendChild(eventEl);
-    });
-}
-
-function formatDate(icsDate) {
-    if (!icsDate) return 'Unbekannt';
-    return `${icsDate.substring(6, 8)}.${icsDate.substring(4, 6)}.${icsDate.substring(0, 4)} ${icsDate.substring(9, 11)}:${icsDate.substring(11, 13)}`;
-}
