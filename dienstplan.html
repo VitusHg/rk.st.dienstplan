@@ -8,7 +8,7 @@
         body { font-family: Arial, sans-serif; padding: 20px; }
         .entry { border-left: 5px solid red; padding: 10px; margin: 10px 0; background: #f8f8f8; }
         #linkInput { width: 80%; padding: 5px; }
-        button { padding: 5px 10px; }
+        button { padding: 5px 10px; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -21,15 +21,20 @@
     
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            if (localStorage.getItem("icsLink")) {
-                document.getElementById("linkInput").value = localStorage.getItem("icsLink");
+            const savedLink = localStorage.getItem("icsLink");
+            if (savedLink) {
+                document.getElementById("linkInput").value = savedLink;
             }
         });
 
         function saveLink() {
             const link = document.getElementById("linkInput").value;
-            localStorage.setItem("icsLink", link);
-            alert("Link gespeichert!");
+            if (link) {
+                localStorage.setItem("icsLink", link);
+                alert("Link gespeichert!");
+            } else {
+                alert("Bitte eine gültige URL eingeben.");
+            }
         }
         
         async function loadICS() {
@@ -41,10 +46,11 @@
             
             try {
                 const response = await fetch(icsLink);
+                if (!response.ok) throw new Error("Fehler beim Laden der Datei");
                 const text = await response.text();
                 parseICS(text);
             } catch (error) {
-                alert("Fehler beim Laden der ICS-Datei");
+                alert("Fehler beim Laden der ICS-Datei: " + error.message);
             }
         }
         
@@ -57,21 +63,25 @@
                 if (line.startsWith("BEGIN:VEVENT")) {
                     event = {};
                 } else if (line.startsWith("SUMMARY:")) {
-                    event.title = line.replace("SUMMARY:", "");
+                    event.title = line.substring(8);
                 } else if (line.startsWith("LOCATION:")) {
-                    event.location = line.replace("LOCATION:", "");
+                    event.location = line.substring(9);
                 } else if (line.startsWith("DESCRIPTION:")) {
-                    event.description = line.replace("DESCRIPTION:", "");
+                    event.description = line.substring(12);
                 } else if (line.startsWith("DTSTART:")) {
-                    event.start = line.replace("DTSTART:", "");
+                    event.start = formatDate(line.substring(8));
                 } else if (line.startsWith("DTEND:")) {
-                    event.end = line.replace("DTEND:", "");
+                    event.end = formatDate(line.substring(6));
                 } else if (line.startsWith("END:VEVENT")) {
                     events.push(event);
                 }
             });
             
             displayEvents(events);
+        }
+        
+        function formatDate(icsDate) {
+            return icsDate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, "$3.$2.$1 $4:$5");
         }
         
         function displayEvents(events) {
