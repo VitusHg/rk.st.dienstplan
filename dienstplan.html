@@ -1,99 +1,87 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dienstplan</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        .entry { border-left: 5px solid red; padding: 10px; margin: 10px 0; background: #f8f8f8; }
-        #linkInput { width: 80%; padding: 5px; }
-        button { padding: 5px 10px; margin-top: 10px; }
-    </style>
-</head>
-<body>
-    <h2>Dienstplan</h2>
-    <label for="linkInput">ICS-Link:</label>
-    <input type="text" id="linkInput" placeholder="https://example.com/dienstplan.ics">
-    <button onclick="saveLink()">Speichern</button>
-    <button onclick="loadICS()">Laden</button>
-    <div id="dienstplan"></div>
-    
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const savedLink = localStorage.getItem("icsLink");
-            if (savedLink) {
-                document.getElementById("linkInput").value = savedLink;
-            }
-        });
+const ICS_URL_KEY = 'ics_url';
 
-        function saveLink() {
-            const link = document.getElementById("linkInput").value;
-            if (link) {
-                localStorage.setItem("icsLink", link);
-                alert("Link gespeichert!");
-            } else {
-                alert("Bitte eine gültige URL eingeben.");
-            }
-        }
+// Speichert die ICS-URL lokal
+function saveICSUrl(url) {
+    localStorage.setItem(ICS_URL_KEY, url);
+}
+
+// Holt die gespeicherte ICS-URL
+function getICSUrl() {
+    return localStorage.getItem(ICS_URL_KEY);
+}
+
+// Lädt die ICS-Datei und parst sie
+async function fetchICSData() {
+    const icsUrl = getICSUrl();
+    if (!icsUrl) {
+        alert('Bitte zuerst eine ICS-URL eingeben.');
+        return;
+    }
+
+    try {
+        const response = await fetch(icsUrl);
+        if (!response.ok) throw new Error('ICS-Datei konnte nicht geladen werden.');
+        const text = await response.text();
+        parseICS(text);
+    } catch (error) {
+        console.error('Fehler beim Laden der ICS-Datei:', error);
+        alert('Fehler beim Laden der ICS-Datei.');
+    }
+}
+
+// Einfache ICS-Parser-Funktion
+function parseICS(icsText) {
+    const events = [];
+    const eventBlocks = icsText.split('BEGIN:VEVENT').slice(1);
+
+    eventBlocks.forEach(block => {
+        const summary = block.match(/SUMMARY:(.*)/)?.[1] || 'Unbekannter Dienst';
+        const description = block.match(/DESCRIPTION:(.*)/)?.[1] || '';
+        const location = block.match(/LOCATION:(.*)/)?.[1] || 'Unbekannter Ort';
+        const dtStart = block.match(/DTSTART:(\d{8}T\d{6})/)?.[1] || '';
+        const dtEnd = block.match(/DTEND:(\d{8}T\d{6})/)?.[1] || '';
         
-        async function loadICS() {
-            const icsLink = localStorage.getItem("icsLink");
-            if (!icsLink) {
-                alert("Kein ICS-Link gespeichert!");
-                return;
-            }
-            
-            try {
-                const response = await fetch(icsLink);
-                if (!response.ok) throw new Error("Fehler beim Laden der Datei");
-                const text = await response.text();
-                parseICS(text);
-            } catch (error) {
-                alert("Fehler beim Laden der ICS-Datei: " + error.message);
-            }
-        }
-        
-        function parseICS(icsText) {
-            const events = [];
-            const lines = icsText.split("\n");
-            let event = {};
-            
-            lines.forEach(line => {
-                if (line.startsWith("BEGIN:VEVENT")) {
-                    event = {};
-                } else if (line.startsWith("SUMMARY:")) {
-                    event.title = line.substring(8);
-                } else if (line.startsWith("LOCATION:")) {
-                    event.location = line.substring(9);
-                } else if (line.startsWith("DESCRIPTION:")) {
-                    event.description = line.substring(12);
-                } else if (line.startsWith("DTSTART:")) {
-                    event.start = formatDate(line.substring(8));
-                } else if (line.startsWith("DTEND:")) {
-                    event.end = formatDate(line.substring(6));
-                } else if (line.startsWith("END:VEVENT")) {
-                    events.push(event);
-                }
-            });
-            
-            displayEvents(events);
-        }
-        
-        function formatDate(icsDate) {
-            return icsDate.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, "$3.$2.$1 $4:$5");
-        }
-        
-        function displayEvents(events) {
-            const container = document.getElementById("dienstplan");
-            container.innerHTML = "";
-            events.forEach(event => {
-                const div = document.createElement("div");
-                div.classList.add("entry");
-                div.innerHTML = `<strong>${event.title}</strong><br>${event.start} - ${event.end}<br>@${event.location}<br>${event.description}`;
-                container.appendChild(div);
-            });
-        }
-    </script>
-</body>
-</html>
+        events.push({ summary, description, location, dtStart, dtEnd });
+    });
+
+    renderEvents(events);
+}
+
+// Zeigt die Termine visuell an
+function renderEvents(events) {
+    const container = document.getElementById('event-list');
+    container.innerHTML = '';
+    events.forEach(event => {
+        const eventEl = document.createElement('div');
+        eventEl.className = 'event';
+        eventEl.innerHTML = `
+            <h3>${event.summary}</h3>
+            <p><strong>Zeit:</strong> ${formatDate(event.dtStart)} - ${formatDate(event.dtEnd)}</p>
+            <p><strong>Ort:</strong> ${event.location}</p>
+            <p><strong>Kollegen:</strong> ${event.description}</p>
+        `;
+        container.appendChild(eventEl);
+    });
+}
+
+// Formatiert das Datum lesbar
+function formatDate(icsDate) {
+    if (!icsDate) return 'Unbekannt';
+    const year = icsDate.substring(0, 4);
+    const month = icsDate.substring(4, 6);
+    const day = icsDate.substring(6, 8);
+    const hour = icsDate.substring(9, 11);
+    const minute = icsDate.substring(11, 13);
+    return `${day}.${month}.${year} ${hour}:${minute} Uhr`;
+}
+
+// Initialisierung der App
+window.onload = function () {
+    document.getElementById('save-url').addEventListener('click', () => {
+        const url = document.getElementById('ics-url').value;
+        saveICSUrl(url);
+    });
+
+    document.getElementById('refresh').addEventListener('click', fetchICSData);
+    fetchICSData();
+};
