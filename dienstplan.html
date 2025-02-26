@@ -28,24 +28,24 @@
 </head>
 <body>
     <h1>ICS Dienstplan</h1>
-    <input type="text" id="icsUrl" placeholder="ICS-Link eingeben">
+    <input type="file" id="icsFile" accept=".ics">
     <button onclick="loadICS()">Laden</button>
     <div id="events"></div>
 
     <script>
-        async function loadICS() {
-            const url = document.getElementById('icsUrl').value;
-            if (!url) return alert('Bitte einen gültigen ICS-Link eingeben!');
-            
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Fehler beim Laden der ICS-Datei');
-                
-                const data = await response.text();
-                parseICS(data);
-            } catch (error) {
-                alert('Fehler: ' + error.message);
+        function loadICS() {
+            const fileInput = document.getElementById('icsFile');
+            if (fileInput.files.length === 0) {
+                alert('Bitte eine .ics-Datei auswählen!');
+                return;
             }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                parseICS(event.target.result);
+            };
+            reader.readAsText(file);
         }
 
         function parseICS(data) {
