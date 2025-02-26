@@ -1,87 +1,77 @@
-const ICS_URL_KEY = 'ics_url';
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dienstplan PWA</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <script defer src="app.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Dienstplan</h1>
+        <button id="refresh">🔄 Aktualisieren</button>
+    </header>
+    <main>
+        <section id="setup">
+            <label for="ics-url">ICS Link eingeben:</label>
+            <input type="url" id="ics-url" placeholder="https://example.com/dienstplan.ics">
+            <button id="save-url">Speichern</button>
+        </section>
+        <section id="event-list"></section>
+    </main>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .then(reg => console.log('Service Worker registriert:', reg))
+                .catch(err => console.error('Service Worker Fehler:', err));
+        }
+    </script>
+</body>
+</html>
 
-// Speichert die ICS-URL lokal
-function saveICSUrl(url) {
-    localStorage.setItem(ICS_URL_KEY, url);
+// service-worker.js
+self.addEventListener('install', event => {
+    event.waitUntil(
+        caches.open('pwa-cache').then(cache => {
+            return cache.addAll([
+                '/',
+                '/index.html',
+                '/styles.css',
+                '/app.js',
+                '/manifest.json'
+            ]);
+        })
+    );
+});
+
+self.addEventListener('fetch', event => {
+    event.respondWith(
+        caches.match(event.request).then(response => {
+            return response || fetch(event.request);
+        })
+    );
+});
+
+// manifest.json
+{
+    "name": "Dienstplan PWA",
+    "short_name": "Dienstplan",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#ff0000",
+    "icons": [
+        {
+            "src": "icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
 }
-
-// Holt die gespeicherte ICS-URL
-function getICSUrl() {
-    return localStorage.getItem(ICS_URL_KEY);
-}
-
-// Lädt die ICS-Datei und parst sie
-async function fetchICSData() {
-    const icsUrl = getICSUrl();
-    if (!icsUrl) {
-        alert('Bitte zuerst eine ICS-URL eingeben.');
-        return;
-    }
-
-    try {
-        const response = await fetch(icsUrl);
-        if (!response.ok) throw new Error('ICS-Datei konnte nicht geladen werden.');
-        const text = await response.text();
-        parseICS(text);
-    } catch (error) {
-        console.error('Fehler beim Laden der ICS-Datei:', error);
-        alert('Fehler beim Laden der ICS-Datei.');
-    }
-}
-
-// Einfache ICS-Parser-Funktion
-function parseICS(icsText) {
-    const events = [];
-    const eventBlocks = icsText.split('BEGIN:VEVENT').slice(1);
-
-    eventBlocks.forEach(block => {
-        const summary = block.match(/SUMMARY:(.*)/)?.[1] || 'Unbekannter Dienst';
-        const description = block.match(/DESCRIPTION:(.*)/)?.[1] || '';
-        const location = block.match(/LOCATION:(.*)/)?.[1] || 'Unbekannter Ort';
-        const dtStart = block.match(/DTSTART:(\d{8}T\d{6})/)?.[1] || '';
-        const dtEnd = block.match(/DTEND:(\d{8}T\d{6})/)?.[1] || '';
-        
-        events.push({ summary, description, location, dtStart, dtEnd });
-    });
-
-    renderEvents(events);
-}
-
-// Zeigt die Termine visuell an
-function renderEvents(events) {
-    const container = document.getElementById('event-list');
-    container.innerHTML = '';
-    events.forEach(event => {
-        const eventEl = document.createElement('div');
-        eventEl.className = 'event';
-        eventEl.innerHTML = `
-            <h3>${event.summary}</h3>
-            <p><strong>Zeit:</strong> ${formatDate(event.dtStart)} - ${formatDate(event.dtEnd)}</p>
-            <p><strong>Ort:</strong> ${event.location}</p>
-            <p><strong>Kollegen:</strong> ${event.description}</p>
-        `;
-        container.appendChild(eventEl);
-    });
-}
-
-// Formatiert das Datum lesbar
-function formatDate(icsDate) {
-    if (!icsDate) return 'Unbekannt';
-    const year = icsDate.substring(0, 4);
-    const month = icsDate.substring(4, 6);
-    const day = icsDate.substring(6, 8);
-    const hour = icsDate.substring(9, 11);
-    const minute = icsDate.substring(11, 13);
-    return `${day}.${month}.${year} ${hour}:${minute} Uhr`;
-}
-
-// Initialisierung der App
-window.onload = function () {
-    document.getElementById('save-url').addEventListener('click', () => {
-        const url = document.getElementById('ics-url').value;
-        saveICSUrl(url);
-    });
-
-    document.getElementById('refresh').addEventListener('click', fetchICSData);
-    fetchICSData();
-};
