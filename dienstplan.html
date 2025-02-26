@@ -52,18 +52,27 @@
             const events = [];
             const lines = data.split(/\r?\n/);
             let event = {};
+            let isEvent = false;
 
             for (let line of lines) {
                 if (line.startsWith('BEGIN:VEVENT')) {
                     event = {};
+                    isEvent = true;
                 } else if (line.startsWith('END:VEVENT')) {
                     events.push(event);
-                } else if (line.startsWith('DTSTART')) {
-                    event.start = parseDate(line);
-                } else if (line.startsWith('DTEND')) {
-                    event.end = parseDate(line);
-                } else if (line.startsWith('SUMMARY')) {
-                    event.summary = line.split(':')[1] || 'Kein Titel';
+                    isEvent = false;
+                } else if (isEvent) {
+                    if (line.startsWith('DTSTART')) {
+                        event.start = parseDate(line);
+                    } else if (line.startsWith('DTEND')) {
+                        event.end = parseDate(line);
+                    } else if (line.startsWith('SUMMARY')) {
+                        event.summary = line.split(':')[1] || 'Kein Titel';
+                    } else if (line.startsWith('LOCATION')) {
+                        event.location = line.split(':')[1] || 'Unbekannt';
+                    } else if (line.startsWith('DESCRIPTION')) {
+                        event.description = line.split(':')[1] || 'Keine Beschreibung';
+                    }
                 }
             }
 
@@ -72,7 +81,10 @@
 
         function parseDate(line) {
             const dateTime = line.split(':')[1];
-            return new Date(dateTime.replace(/T.*$/, ''));
+            if (dateTime.includes('T')) {
+                return new Date(dateTime.replace(/Z$/, ''));
+            }
+            return new Date(dateTime);
         }
 
         function displayEvents(events) {
@@ -82,7 +94,9 @@
             events.forEach(event => {
                 const div = document.createElement('div');
                 div.className = 'event';
-                div.innerHTML = `<strong>${event.summary}</strong><br>${event.start.toLocaleDateString()} - ${event.end.toLocaleDateString()}`;
+                div.innerHTML = `<strong>${event.summary}</strong><br>
+                                 ${event.start.toLocaleString()} - ${event.end.toLocaleString()}<br>
+                                 <em>${event.location}</em>`;
                 eventsContainer.appendChild(div);
             });
         }
