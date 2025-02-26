@@ -3,81 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dienstplan PWA</title>
+    <title>ICS Dienstplan</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
             padding: 20px;
             text-align: center;
         }
-        #event-list {
+        #events {
             margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
         }
         .event {
             border: 1px solid #ccc;
             padding: 10px;
-            margin: 10px 0;
             border-radius: 5px;
-            background: #f9f9f9;
+            background: #f4f4f4;
+            width: 200px;
         }
     </style>
 </head>
 <body>
-    <h1>Dienstplan</h1>
-    <input type="url" id="ics-url" placeholder="ICS-Link eingeben">
+    <h1>ICS Dienstplan</h1>
+    <input type="text" id="icsUrl" placeholder="ICS-Link eingeben">
     <button onclick="loadICS()">Laden</button>
-    <div id="event-list"></div>
-    
+    <div id="events"></div>
+
     <script>
         async function loadICS() {
-            const url = document.getElementById('ics-url').value;
-            if (!url) {
-                alert('Bitte einen ICS-Link eingeben.');
-                return;
-            }
-            localStorage.setItem('ics_url', url);
-            fetchICS(url);
-        }
-
-        async function fetchICS(url) {
+            const url = document.getElementById('icsUrl').value;
+            if (!url) return alert('Bitte einen gültigen ICS-Link eingeben!');
+            
             try {
                 const response = await fetch(url);
-                if (!response.ok) throw new Error('Fehler beim Laden der Datei');
-                const text = await response.text();
-                displayEvents(parseICS(text));
+                if (!response.ok) throw new Error('Fehler beim Laden der ICS-Datei');
+                
+                const data = await response.text();
+                parseICS(data);
             } catch (error) {
-                console.error('Fehler:', error);
-                alert('Fehler beim Laden der ICS-Datei.');
+                alert('Fehler: ' + error.message);
             }
         }
 
-        function parseICS(icsText) {
+        function parseICS(data) {
             const events = [];
-            const eventBlocks = icsText.split('BEGIN:VEVENT').slice(1);
-            eventBlocks.forEach(block => {
-                const summary = (block.match(/SUMMARY:(.*)/) || [])[1] || 'Unbekannter Dienst';
-                const dtStart = (block.match(/DTSTART:(\d{8}T\d{6})/) || [])[1] || '';
-                const dtEnd = (block.match(/DTEND:(\d{8}T\d{6})/) || [])[1] || '';
-                events.push({ summary, dtStart, dtEnd });
-            });
-            return events;
+            const lines = data.split(/\r?\n/);
+            let event = {};
+
+            for (let line of lines) {
+                if (line.startsWith('BEGIN:VEVENT')) {
+                    event = {};
+                } else if (line.startsWith('END:VEVENT')) {
+                    events.push(event);
+                } else if (line.startsWith('DTSTART')) {
+                    event.start = parseDate(line);
+                } else if (line.startsWith('DTEND')) {
+                    event.end = parseDate(line);
+                } else if (line.startsWith('SUMMARY')) {
+                    event.summary = line.split(':')[1] || 'Kein Titel';
+                }
+            }
+
+            displayEvents(events);
+        }
+
+        function parseDate(line) {
+            const dateTime = line.split(':')[1];
+            return new Date(dateTime.replace(/T.*$/, ''));
         }
 
         function displayEvents(events) {
-            const container = document.getElementById('event-list');
-            container.innerHTML = '';
+            const eventsContainer = document.getElementById('events');
+            eventsContainer.innerHTML = '';
+            
             events.forEach(event => {
-                const eventEl = document.createElement('div');
-                eventEl.className = 'event';
-                eventEl.innerHTML = `<h3>${event.summary}</h3><p>${formatDate(event.dtStart)} - ${formatDate(event.dtEnd)}</p>`;
-                container.appendChild(eventEl);
+                const div = document.createElement('div');
+                div.className = 'event';
+                div.innerHTML = `<strong>${event.summary}</strong><br>${event.start.toLocaleDateString()} - ${event.end.toLocaleDateString()}`;
+                eventsContainer.appendChild(div);
             });
-        }
-
-        function formatDate(icsDate) {
-            if (!icsDate) return 'Unbekannt';
-            return `${icsDate.substring(6, 8)}.${icsDate.substring(4, 6)}.${icsDate.substring(0, 4)} ${icsDate.substring(9, 11)}:${icsDate.substring(11, 13)}`;
         }
     </script>
 </body>
